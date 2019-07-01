@@ -119,7 +119,10 @@ view model =
     div []
         [ viewInput "text" "Start Date" model.startDate StartDate
         , viewInput "number" "Initial Balance" initialBalance InitialBalance
-        , div [] [ button [ onClick AddStock ] [ text "Add Stock" ] ]
+        , div []
+            [ text "Portfolio Allocation"
+            , button [ onClick AddStock ] [ text "Add Stock" ]
+            ]
         , div [] (viewStockInput model)
         ]
 
@@ -131,7 +134,7 @@ viewStockInput model =
             (\( id, { name, allocation } ) ->
                 div []
                     [ viewInput "text" "Stock Name" name (PortfolioAllocationName id)
-                    , viewInput "number" "Portfolio Allocation" (String.fromInt allocation) (PortfolioAllocation id)
+                    , viewInput "number" "Allocation" (String.fromInt allocation) (PortfolioAllocation id)
                     , button [ onClick (RemoveStock id) ] [ text "Remove" ]
                     ]
             )
@@ -139,4 +142,7 @@ viewStockInput model =
 
 viewInput : String -> String -> String -> (String -> msg) -> Html msg
 viewInput t p v toMsg =
-    input [ type_ t, placeholder p, value v, onInput toMsg ] []
+    span []
+        [ label [] [ text p ]
+        , input [ type_ t, placeholder p, value v, onInput toMsg ] []
+        ]
