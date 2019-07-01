@@ -4,7 +4,7 @@ import Browser
 import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onInput)
+import Html.Events exposing (onClick, onInput)
 
 
 main =
@@ -20,7 +20,7 @@ type alias Model =
 
 init : Model
 init =
-    Model "" 0 Dict.empty
+    Model "" 0 (Dict.fromList [ ( 1, Stock "" 0 ) ])
 
 
 type alias Stock =
@@ -58,6 +58,7 @@ type Msg
     | InitialBalance String
     | PortfolioAllocation Int String
     | PortfolioAllocationName Int String
+    | AddStock
 
 
 update : Msg -> Model -> Model
@@ -87,6 +88,16 @@ update msg model =
             let
                 portAllocation =
                     Dict.update id (updateStockName input) model.portfolioAllocation
+            in
+            { model | portfolioAllocation = portAllocation }
+
+        AddStock ->
+            let
+                id =
+                    Dict.size model.portfolioAllocation + 1
+
+                portAllocation =
+                    Dict.update id (updateStockName "") model.portfolioAllocation
             in
             { model | portfolioAllocation = portAllocation }
 
@@ -120,9 +131,21 @@ view model =
     div []
         [ viewInput "text" "Start Date" model.startDate StartDate
         , viewInput "number" "Initial Balance" initialBalance InitialBalance
-        , viewInput "number" "Stock Name" (getStockName 1 model) (PortfolioAllocation 1)
-        , viewInput "number" "Portfolio Allocation" (getAllocation 1 model) (PortfolioAllocation 1)
+        , div [] [ button [ onClick AddStock ] [ text "Add Stock" ] ]
+        , div [] (viewStockInput model)
         ]
+
+
+viewStockInput : Model -> List (Html Msg)
+viewStockInput model =
+    Dict.toList model.portfolioAllocation
+        |> List.map
+            (\( id, _ ) ->
+                div []
+                    [ viewInput "number" "Stock Name" (getStockName id model) (PortfolioAllocation id)
+                    , viewInput "number" "Portfolio Allocation" (getAllocation id model) (PortfolioAllocation id)
+                    ]
+            )
 
 
 viewInput : String -> String -> String -> (String -> msg) -> Html msg
