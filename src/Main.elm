@@ -59,6 +59,7 @@ type Msg
     | PortfolioAllocation Int String
     | PortfolioAllocationName Int String
     | AddStock
+    | RemoveStock Int
 
 
 update : Msg -> Model -> Model
@@ -101,25 +102,12 @@ update msg model =
             in
             { model | portfolioAllocation = portAllocation }
 
-
-getAllocation : Int -> Model -> String
-getAllocation id model =
-    case Dict.get id model.portfolioAllocation of
-        Nothing ->
-            "0"
-
-        Just { allocation } ->
-            String.fromInt allocation
-
-
-getStockName : Int -> Model -> String
-getStockName id model =
-    case Dict.get id model.portfolioAllocation of
-        Nothing ->
-            ""
-
-        Just { name } ->
-            name
+        RemoveStock id ->
+            let
+                portAllocation =
+                    Dict.update id (\_ -> Nothing) model.portfolioAllocation
+            in
+            { model | portfolioAllocation = portAllocation }
 
 
 view : Model -> Html Msg
@@ -140,10 +128,11 @@ viewStockInput : Model -> List (Html Msg)
 viewStockInput model =
     Dict.toList model.portfolioAllocation
         |> List.map
-            (\( id, _ ) ->
+            (\( id, { name, allocation } ) ->
                 div []
-                    [ viewInput "number" "Stock Name" (getStockName id model) (PortfolioAllocation id)
-                    , viewInput "number" "Portfolio Allocation" (getAllocation id model) (PortfolioAllocation id)
+                    [ viewInput "text" "Stock Name" name (PortfolioAllocationName id)
+                    , viewInput "number" "Portfolio Allocation" (String.fromInt allocation) (PortfolioAllocation id)
+                    , button [ onClick (RemoveStock id) ] [ text "Remove" ]
                     ]
             )
 
