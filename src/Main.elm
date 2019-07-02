@@ -8,6 +8,7 @@ import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 import Json.Decode as D
 import Platform.Cmd
+import Url.Builder as Url
 
 
 main =
@@ -138,14 +139,25 @@ update msg model =
                     ( model, Cmd.none )
 
 
+apiUrl : String
+apiUrl =
+    Url.custom
+        (Url.CrossOrigin "https://api.worldtradingdata.com")
+        [ "api", "v1", "history_multi_single_day" ]
+        [ Url.string "symbol" "AAPL,GOOG", Url.string "date" "2013-03-20", Url.string "api_token" "enAjhSXYaOW5nMV2y0r4Q7GozCk6C4SRTSNlwfNdjUvK9tqu4tCAqLcnopyD" ]
+        Nothing
+
+
+getStockData : Cmd Msg
 getStockData =
     Http.get
-        { url = "https://api.worldtradingdata.com/api/v1/history_multi_single_day?symbol=AAPL,GOOG&date=2013-03-20&api_token=enAjhSXYaOW5nMV2y0r4Q7GozCk6C4SRTSNlwfNdjUvK9tqu4tCAqLcnopyD"
+        { url = apiUrl
         , expect = Http.expectJson GotStockData decoder
         }
         |> Debug.log "getStockData"
 
 
+decoder : D.Decoder String
 decoder =
     D.at [ "data", "AAPL", "close" ] D.string
 
