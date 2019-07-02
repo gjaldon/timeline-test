@@ -32,13 +32,6 @@ init _ =
     ( model, Cmd.none )
 
 
-type alias StockPerformance =
-    { name : String
-    , price : Int
-    , date : String
-    }
-
-
 type alias Stock =
     { name : String
     , allocation : Int
@@ -77,7 +70,7 @@ type Msg
     | AddStock
     | RemoveStock Int
     | SubmittedForm
-    | GotStockData (Result Http.Error String)
+    | GotStockData (Result Http.Error (List StockPerformance))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -165,9 +158,46 @@ getStockData symbolsInput =
         }
 
 
-decoder : D.Decoder String
+type alias StockInfo =
+    { date : String
+    , data : Dict String Float
+    }
+
+
+type alias StockPerformance =
+    { name : String
+    , price : Float
+    , date : String
+    }
+
+
+stockInfoToStockPerformance : StockInfo -> List StockPerformance
+stockInfoToStockPerformance { data, date } =
+    Dict.foldl
+        (\name price stockPerformances ->
+            StockPerformance name price date :: stockPerformances
+        )
+        []
+        data
+
+
+decoder : D.Decoder (List StockPerformance)
 decoder =
-    D.at [ "data", "AAPL", "close" ] D.string
+    D.map stockInfoToStockPerformance infoDecoder
+
+
+infoDecoder : D.Decoder StockInfo
+infoDecoder =
+    let
+        closeField =
+            D.field "close" D.string
+                |> D.map String.toFloat
+                |> D.map (Maybe.withDefault 0)
+    in
+    D.map2
+        StockInfo
+        (D.field "date" D.string)
+        (D.field "data" (D.dict closeField))
 
 
 subscriptions : Model -> Sub Msg
