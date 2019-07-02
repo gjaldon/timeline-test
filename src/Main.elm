@@ -4,23 +4,38 @@ import Browser
 import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick, onInput)
+import Html.Events exposing (onClick, onInput, onSubmit)
+import Http
+import Json.Decode as D
+import Platform.Cmd
 
 
 main =
-    Browser.sandbox { init = init, update = update, view = view }
+    Browser.element { init = init, update = update, view = view, subscriptions = subscriptions }
 
 
 type alias Model =
     { startDate : String
     , initialBalance : Int
     , portfolioAllocation : Dict Int Stock
+    , stockPerformance : Dict String StockPerformance
     }
 
 
-init : Model
-init =
-    Model "" 0 (Dict.fromList [ ( 1, Stock "" 0 ) ])
+init : () -> ( Model, Cmd msg )
+init _ =
+    let
+        model =
+            Model "" 0 (Dict.fromList [ ( 1, Stock "" 0 ) ]) Dict.empty
+    in
+    ( model, Cmd.none )
+
+
+type alias StockPerformance =
+    { name : String
+    , price : Int
+    , date : String
+    }
 
 
 type alias Stock =
@@ -60,20 +75,22 @@ type Msg
     | PortfolioAllocationName Int String
     | AddStock
     | RemoveStock Int
+    | SubmittedForm
+    | GotStockData (Result Http.Error String)
 
 
-update : Msg -> Model -> Model
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         StartDate startDate ->
-            { model | startDate = startDate }
+            ( { model | startDate = startDate }, Cmd.none )
 
         InitialBalance input ->
             let
                 initialBalance =
                     Maybe.withDefault 0 (String.toInt input)
             in
-            { model | initialBalance = initialBalance }
+            ( { model | initialBalance = initialBalance }, Cmd.none )
 
         PortfolioAllocation id input ->
             let
@@ -83,14 +100,14 @@ update msg model =
                 portAllocation =
                     Dict.update id (updateStockAllocation allocation) model.portfolioAllocation
             in
-            { model | portfolioAllocation = portAllocation }
+            ( { model | portfolioAllocation = portAllocation }, Cmd.none )
 
         PortfolioAllocationName id input ->
             let
                 portAllocation =
                     Dict.update id (updateStockName input) model.portfolioAllocation
             in
-            { model | portfolioAllocation = portAllocation }
+            ( { model | portfolioAllocation = portAllocation }, Cmd.none )
 
         AddStock ->
             let
@@ -100,14 +117,42 @@ update msg model =
                 portAllocation =
                     Dict.update id (updateStockName "") model.portfolioAllocation
             in
-            { model | portfolioAllocation = portAllocation }
+            ( { model | portfolioAllocation = portAllocation }, Cmd.none )
 
         RemoveStock id ->
             let
                 portAllocation =
                     Dict.update id (\_ -> Nothing) model.portfolioAllocation
             in
-            { model | portfolioAllocation = portAllocation }
+            ( { model | portfolioAllocation = portAllocation }, Cmd.none )
+
+        SubmittedForm ->
+            ( model, getStockData )
+
+        GotStockData result ->
+            case result |> Debug.log "gotStockData" of
+                Ok stockPrice ->
+                    ( { model | stockPerformance = Dict.empty }, Cmd.none )
+
+                Err _ ->
+                    ( model, Cmd.none )
+
+
+getStockData =
+    Http.get
+        { url = "https://api.worldtradingdata.com/api/v1/history_multi_single_day?symbol=AAPL,GOOG&date=2013-03-20&api_token=enAjhSXYaOW5nMV2y0r4Q7GozCk6C4SRTSNlwfNdjUvK9tqu4tCAqLcnopyD"
+        , expect = Http.expectJson GotStockData decoder
+        }
+        |> Debug.log "getStockData"
+
+
+decoder =
+    D.at [ "data", "AAPL", "close" ] D.string
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.none
 
 
 view : Model -> Html Msg
@@ -116,14 +161,15 @@ view model =
         initialBalance =
             String.fromInt model.initialBalance
     in
-    div []
-        [ viewInput "text" "Start Date" model.startDate StartDate
-        , viewInput "number" "Initial Balance" initialBalance InitialBalance
-        , div []
+    Html.form [ onSubmit SubmittedForm ]
+        [ fieldset [] [ viewInput "text" "Start Date" model.startDate StartDate ]
+        , fieldset [] [ viewInput "number" "Initial Balance" initialBalance InitialBalance ]
+        , fieldset []
             [ text "Portfolio Allocation"
             , button [ onClick AddStock ] [ text "Add Stock" ]
             ]
         , div [] (viewStockInput model)
+        , button [] [ text "Submit" ]
         ]
 
 
@@ -132,7 +178,7 @@ viewStockInput model =
     Dict.toList model.portfolioAllocation
         |> List.map
             (\( id, { name, allocation } ) ->
-                div []
+                fieldset []
                     [ viewInput "text" "Stock Name" name (PortfolioAllocationName id)
                     , viewInput "number" "Allocation" (String.fromInt allocation) (PortfolioAllocation id)
                     , button [ onClick (RemoveStock id) ] [ text "Remove" ]
