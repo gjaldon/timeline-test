@@ -128,7 +128,12 @@ update msg model =
             ( { model | portfolioAllocation = portAllocation }, Cmd.none )
 
         SubmittedForm ->
-            ( model, getStockData )
+            let
+                symbols =
+                    Dict.values model.portfolioAllocation
+                        |> List.map (\stock -> stock.name)
+            in
+            ( model, getStockData symbols )
 
         GotStockData result ->
             case result |> Debug.log "gotStockData" of
@@ -139,22 +144,25 @@ update msg model =
                     ( model, Cmd.none )
 
 
-apiUrl : String
-apiUrl =
+apiUrl : List String -> String
+apiUrl symbolsInput =
+    let
+        symbols =
+            String.join "," symbolsInput
+    in
     Url.custom
         (Url.CrossOrigin "https://api.worldtradingdata.com")
         [ "api", "v1", "history_multi_single_day" ]
-        [ Url.string "symbol" "AAPL,GOOG", Url.string "date" "2013-03-20", Url.string "api_token" "enAjhSXYaOW5nMV2y0r4Q7GozCk6C4SRTSNlwfNdjUvK9tqu4tCAqLcnopyD" ]
+        [ Url.string "symbol" symbols, Url.string "date" "2013-03-20", Url.string "api_token" "enAjhSXYaOW5nMV2y0r4Q7GozCk6C4SRTSNlwfNdjUvK9tqu4tCAqLcnopyD" ]
         Nothing
 
 
-getStockData : Cmd Msg
-getStockData =
+getStockData : List String -> Cmd Msg
+getStockData symbolsInput =
     Http.get
-        { url = apiUrl
+        { url = apiUrl symbolsInput
         , expect = Http.expectJson GotStockData decoder
         }
-        |> Debug.log "getStockData"
 
 
 decoder : D.Decoder String
