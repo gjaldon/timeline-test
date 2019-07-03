@@ -22,9 +22,9 @@ type alias Model =
     { startDate : Maybe Date
     , initialBalance : Int
     , portfolioAllocation : Dict Int StockField
-    , historicStockData : Dict String Stock
     , datePicker : DatePicker.DatePicker
-    , latestStockData : Dict String Stock
+    , currentWorth : Dict String Float
+    , stocks : Dict String Stock
     }
 
 
@@ -38,9 +38,9 @@ init _ =
             { startDate = Nothing
             , initialBalance = 0
             , portfolioAllocation = Dict.fromList [ ( 1, StockField "" 0 ) ]
-            , historicStockData = Dict.empty
             , datePicker = datePicker
-            , latestStockData = Dict.empty
+            , currentWorth = Dict.empty
+            , stocks = Dict.empty
             }
     in
     ( model, Cmd.map ToDatePicker datePickerFx )
@@ -83,8 +83,8 @@ type Msg
     | AddStock
     | RemoveStock Int
     | SubmittedForm
-    | GotLatestStockData (Result Http.Error (List Stock))
-    | GotHistoricStockData (Result Http.Error (List Stock))
+    | GotLatestStockData (Result Http.Error (List DecodedStock))
+    | GotHistoricStockData (Result Http.Error (List DecodedStock))
     | ToDatePicker DatePicker.Msg
 
 
@@ -134,19 +134,16 @@ update msg model =
 
         SubmittedForm ->
             let
-                symbols =
+                allocations =
                     Dict.values model.portfolioAllocation
-                        |> List.map (\stock -> stock.name)
+
+                symbols =
+                    List.map (\stock -> stock.name) allocations
+
+                stocks =
+                    List.foldl (addStockWithShares model) Dict.empty allocations
             in
-            ( model, Cmd.batch [ getHistoricStockData model.startDate symbols, getLatestStockData symbols ] )
-
-        GotHistoricStockData result ->
-            case result |> Debug.log "gotHistoricStockData" of
-                Ok stockPrice ->
-                    ( { model | historicStockData = Dict.empty }, Cmd.none )
-
-                Err _ ->
-                    ( model, Cmd.none )
+            ( { model | stocks = stocks }, Cmd.batch [ getHistoricStockData model.startDate symbols, getLatestStockData symbols ] )
 
         ToDatePicker subMsg ->
             let
@@ -168,13 +165,87 @@ update msg model =
             , Cmd.none
             )
 
-        GotLatestStockData result ->
-            case result |> Debug.log "gotLatestStockData" of
-                Ok stockPrice ->
-                    ( { model | latestStockData = Dict.empty }, Cmd.none )
+        GotHistoricStockData result ->
+            case result of
+                Ok stockData ->
+                    let
+                        newStocks =
+                            List.foldr (\stock dict -> Dict.update stock.symbol (updateStockHistoricPrice stock.price) dict) model.stocks stockData
+                    in
+                    ( { model | stocks = newStocks }, Cmd.none )
 
                 Err _ ->
                     ( model, Cmd.none )
+
+        GotLatestStockData result ->
+            case result of
+                Ok stockData ->
+                    let
+                        newStocks =
+                            List.foldr (\stock dict -> Dict.update stock.symbol (updateStockLatestPrice stock.price) dict) model.stocks stockData
+                    in
+                    ( { model | stocks = newStocks }, Cmd.none )
+
+                Err _ ->
+                    ( model, Cmd.none )
+
+
+type alias Stock =
+    { symbol : String
+    , initialInvestment : Float
+    , historicPrice : Float
+    , latestPrice : Float
+    }
+
+
+addStockWithShares : Model -> StockField -> Dict String Stock -> Dict String Stock
+addStockWithShares { initialBalance } { name, allocation } dict =
+    let
+        initialInvestment =
+            ((toFloat allocation / 100.0) |> Debug.log "allocation") * toFloat initialBalance |> Debug.log "investment"
+    in
+    Dict.insert name (Stock name initialInvestment 0 0) dict
+
+
+updateStockHistoricPrice : Float -> Maybe Stock -> Maybe Stock
+updateStockHistoricPrice price value =
+    case value of
+        Nothing ->
+            -- TODO : Raise an error here since this is unexpected behavior
+            Just (Stock "" 0 0 0)
+
+        Just stock ->
+            Just { stock | historicPrice = price }
+
+
+updateStockLatestPrice : Float -> Maybe Stock -> Maybe Stock
+updateStockLatestPrice price value =
+    case value of
+        Nothing ->
+            -- TODO : Raise an error here since this is unexpected behavior
+            Just (Stock "" 0 0 0)
+
+        Just stock ->
+            Just { stock | latestPrice = price }
+
+
+
+-- computeCurrentWorth model =
+--     let
+--         Dict.toList model.historicStockData
+--         |> List.map (\ (symbol, stock) ->
+--             let
+--                 latestStock =
+--                     Dict.get symbol model.latestStockData
+--                     |> Maybe.withDefault (Stock symbol 0)
+--             in
+--             model.allocation stock.price
+--         )
+--     in
+
+
+getStockAllocation model =
+    Dict.get model.portfolioAllocation
 
 
 apiToken : String
@@ -190,21 +261,21 @@ getLatestStockData symbolsInput =
         }
 
 
-type alias Stock =
+type alias DecodedStock =
     { symbol : String
     , price : Float
     }
 
 
-latestStocksDecoder : D.Decoder (List Stock)
+latestStocksDecoder : D.Decoder (List DecodedStock)
 latestStocksDecoder =
     D.field "data" (D.list latestStockDecoder)
 
 
-latestStockDecoder : D.Decoder Stock
+latestStockDecoder : D.Decoder DecodedStock
 latestStockDecoder =
     D.map2
-        Stock
+        DecodedStock
         (D.field "symbol" D.string)
         (D.field "close_yesterday" D.string
             |> D.map String.toFloat
@@ -255,16 +326,16 @@ type alias StockInfo =
     }
 
 
-historicStockDecoder : D.Decoder (List Stock)
+historicStockDecoder : D.Decoder (List DecodedStock)
 historicStockDecoder =
     D.map stockInfoToStock stockInfoDecoder
 
 
-stockInfoToStock : StockInfo -> List Stock
+stockInfoToStock : StockInfo -> List DecodedStock
 stockInfoToStock { data, date } =
     Dict.foldl
         (\name price stockPerformances ->
-            Stock name price :: stockPerformances
+            DecodedStock name price :: stockPerformances
         )
         []
         data
