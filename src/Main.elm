@@ -370,6 +370,16 @@ view model =
 
 viewResults : Model -> Html Msg
 viewResults model =
+    let
+        stocks =
+            Dict.values model.stocks
+
+        totalCurrentWorth =
+            List.foldl (\stock sum -> stock.currentWorth + sum) 0 stocks
+
+        totalPerformance =
+            ((totalCurrentWorth / toFloat model.initialBalance) * 100) - 100
+    in
     section []
         [ text "Results"
         , div []
@@ -384,12 +394,18 @@ viewResults model =
                     in
                     div []
                         [ text stock.symbol
-                        , div [] [ text ("CurrentWorth: USD " ++ currentWorth) ]
+                        , div [] [ text ("Initial Investment: USD " ++ format usLocale stock.initialInvestment) ]
+                        , div [] [ text ("Current Worth: USD " ++ currentWorth) ]
                         , div [] [ text ("Performance: " ++ performance ++ "%") ]
                         ]
                 )
-                (Dict.values model.stocks)
+                stocks
             )
+        , section []
+            [ text "Total Results"
+            , div [] [ text ("Total Current Worth: USD " ++ format usLocale totalCurrentWorth) ]
+            , div [] [ text ("Total Performance: " ++ format usLocale totalPerformance) ]
+            ]
         ]
 
 
