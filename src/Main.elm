@@ -4,6 +4,8 @@ import Browser
 import Date exposing (Date)
 import DatePicker
 import Dict exposing (Dict)
+import FormatNumber exposing (format)
+import FormatNumber.Locales exposing (usLocale)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onSubmit)
@@ -195,6 +197,7 @@ type alias Stock =
     , initialInvestment : Float
     , historicPrice : Float
     , latestPrice : Float
+    , currentWorth : Float
     }
 
 
@@ -204,7 +207,7 @@ addStockWithShares { initialBalance } { name, allocation } dict =
         initialInvestment =
             ((toFloat allocation / 100.0) |> Debug.log "allocation") * toFloat initialBalance |> Debug.log "investment"
     in
-    Dict.insert name (Stock name initialInvestment 0 0) dict
+    Dict.insert name (Stock name initialInvestment 0 0 0) dict
 
 
 updateStockHistoricPrice : Float -> Maybe Stock -> Maybe Stock
@@ -212,10 +215,17 @@ updateStockHistoricPrice price value =
     case value of
         Nothing ->
             -- TODO : Raise an error here since this is unexpected behavior
-            Just (Stock "" 0 0 0)
+            Just (Stock "" 0 0 0 0)
 
         Just stock ->
-            Just { stock | historicPrice = price }
+            let
+                newStock =
+                    { stock | historicPrice = price }
+
+                currentWorth =
+                    computeCurrentWorth newStock
+            in
+            Just { newStock | currentWorth = currentWorth } |> Debug.log "currentWorth"
 
 
 updateStockLatestPrice : Float -> Maybe Stock -> Maybe Stock
@@ -223,25 +233,20 @@ updateStockLatestPrice price value =
     case value of
         Nothing ->
             -- TODO : Raise an error here since this is unexpected behavior
-            Just (Stock "" 0 0 0)
+            Just (Stock "" 0 0 0 0)
 
         Just stock ->
             Just { stock | latestPrice = price }
 
 
-
--- computeCurrentWorth model =
---     let
---         Dict.toList model.historicStockData
---         |> List.map (\ (symbol, stock) ->
---             let
---                 latestStock =
---                     Dict.get symbol model.latestStockData
---                     |> Maybe.withDefault (Stock symbol 0)
---             in
---             model.allocation stock.price
---         )
---     in
+computeCurrentWorth : Stock -> Float
+computeCurrentWorth stock =
+    let
+        { initialInvestment, historicPrice, latestPrice } =
+            stock
+                |> Debug.log "computeCurrentWorth"
+    in
+    (initialInvestment / historicPrice) * latestPrice
 
 
 getStockAllocation model =
@@ -357,6 +362,39 @@ stockInfoDecoder =
 
 view : Model -> Html Msg
 view model =
+    div []
+        [ viewForm model
+        , viewResults model
+        ]
+
+
+viewResults : Model -> Html Msg
+viewResults model =
+    section []
+        [ text "Results"
+        , div []
+            (List.map
+                (\stock ->
+                    let
+                        performance =
+                            format usLocale (((stock.currentWorth / stock.initialInvestment) * 100) - 100)
+
+                        currentWorth =
+                            format usLocale stock.currentWorth
+                    in
+                    div []
+                        [ text stock.symbol
+                        , div [] [ text ("CurrentWorth: USD " ++ currentWorth) ]
+                        , div [] [ text ("Performance: " ++ performance ++ "%") ]
+                        ]
+                )
+                (Dict.values model.stocks)
+            )
+        ]
+
+
+viewForm : Model -> Html Msg
+viewForm model =
     let
         initialBalance =
             String.fromInt model.initialBalance
@@ -373,6 +411,7 @@ view model =
         ]
 
 
+viewDatePicker : Model -> Html Msg
 viewDatePicker { startDate, datePicker } =
     span []
         [ label [] [ text "Start Date" ]
