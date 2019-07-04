@@ -12,6 +12,7 @@ import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 import Json.Decode as D
 import Platform.Cmd
+import Time exposing (Weekday(..))
 import Url.Builder as Url
 
 
@@ -46,6 +47,18 @@ init _ =
             }
     in
     ( model, Cmd.map ToDatePicker datePickerFx )
+
+
+settings : DatePicker.Settings
+settings =
+    let
+        isDisabled date =
+            List.member (Date.weekday date) [ Sat, Sun ]
+
+        defaultSettings =
+            DatePicker.defaultSettings
+    in
+    { defaultSettings | isDisabled = isDisabled }
 
 
 type alias StockField =
@@ -146,7 +159,7 @@ update msg model =
         ToDatePicker subMsg ->
             let
                 ( newDatePicker, dateEvent ) =
-                    DatePicker.update DatePicker.defaultSettings subMsg model.datePicker
+                    DatePicker.update settings subMsg model.datePicker
 
                 newDate =
                     case dateEvent of
@@ -421,7 +434,7 @@ viewForm model =
     in
     Html.form [ onSubmit SubmittedForm ]
         [ fieldset [] [ viewDatePicker model ]
-        , fieldset [] [ viewInput "number" "Initial Balance (USD)" initialBalance InitialBalance ]
+        , fieldset [] [ viewInput "number" "Initial Balance (USD)" initialBalance InitialBalance [ Html.Attributes.min "1" ] ]
         , fieldset []
             [ text "Portfolio Allocation"
             , button [ onClick AddStock ] [ text "Add Stock" ]
@@ -435,7 +448,7 @@ viewDatePicker : Model -> Html Msg
 viewDatePicker { startDate, datePicker } =
     span []
         [ label [] [ text "Start Date" ]
-        , DatePicker.view startDate DatePicker.defaultSettings datePicker |> Html.map ToDatePicker
+        , DatePicker.view startDate settings datePicker |> Html.map ToDatePicker
         ]
 
 
@@ -449,16 +462,20 @@ viewStockInput model =
                         Maybe.map String.fromInt allocation |> Maybe.withDefault ""
                 in
                 fieldset []
-                    [ viewInput "text" "Stock Name" name (PortfolioAllocationName id)
-                    , viewInput "number" "Allocation" allocationText (PortfolioAllocation id)
+                    [ viewInput "text" "Stock Name" name (PortfolioAllocationName id) []
+                    , viewInput "number" "Allocation" allocationText (PortfolioAllocation id) [ Html.Attributes.min "0", Html.Attributes.max "100" ]
                     , button [ onClick (RemoveStock id) ] [ text "Remove" ]
                     ]
             )
 
 
-viewInput : String -> String -> String -> (String -> msg) -> Html msg
-viewInput t p v toMsg =
+viewInput : String -> String -> String -> (String -> msg) -> List (Attribute msg) -> Html msg
+viewInput t p v toMsg attributes =
+    let
+        newAttributes =
+            List.append [ type_ t, placeholder p, value v, onInput toMsg ] attributes
+    in
     span []
         [ label [] [ text p ]
-        , input [ type_ t, placeholder p, value v, onInput toMsg ] []
+        , input newAttributes []
         ]
