@@ -39,7 +39,7 @@ init _ =
         model =
             { startDate = Nothing
             , initialBalance = 0
-            , portfolioAllocation = Dict.fromList [ ( 1, StockField "" 0 ) ]
+            , portfolioAllocation = Dict.fromList [ ( 1, StockField "" Nothing ) ]
             , datePicker = datePicker
             , currentWorth = Dict.empty
             , stocks = Dict.empty
@@ -50,29 +50,25 @@ init _ =
 
 type alias StockField =
     { name : String
-    , allocation : Int
+    , allocation : Maybe Int
     }
 
 
 updateStockAllocation : Maybe Int -> Maybe StockField -> Maybe StockField
 updateStockAllocation allocation value =
-    let
-        newAllocation =
-            Maybe.withDefault 0 allocation
-    in
     case value of
         Nothing ->
-            Just (StockField "" newAllocation)
+            Just (StockField "" allocation)
 
         Just i ->
-            Just { i | allocation = newAllocation }
+            Just { i | allocation = allocation }
 
 
 updateStockName : String -> Maybe StockField -> Maybe StockField
 updateStockName name value =
     case value of
         Nothing ->
-            Just (StockField name 0)
+            Just (StockField name Nothing)
 
         Just i ->
             Just { i | name = name }
@@ -204,8 +200,11 @@ type alias Stock =
 addStockWithShares : Model -> StockField -> Dict String Stock -> Dict String Stock
 addStockWithShares { initialBalance } { name, allocation } dict =
     let
+        floatAllocation =
+            (Maybe.withDefault 0 allocation |> toFloat) / 100.0
+
         initialInvestment =
-            (toFloat allocation / 100.0) * initialBalance
+            floatAllocation * initialBalance
     in
     Dict.insert name (Stock name initialInvestment 0 0 0) dict
 
@@ -320,7 +319,7 @@ historicStockUrl startDate symbolsInput =
     Url.custom
         (Url.CrossOrigin "https://api.worldtradingdata.com")
         [ "api", "v1", "history_multi_single_day" ]
-        [ Url.string "symbol" symbols, Url.string "date" date, Url.string "api_token" "enAjhSXYaOW5nMV2y0r4Q7GozCk6C4SRTSNlwfNdjUvK9tqu4tCAqLcnopyD" ]
+        [ Url.string "symbol" symbols, Url.string "date" date, Url.string "api_token" apiToken ]
         Nothing
 
 
@@ -373,8 +372,11 @@ viewResults model =
         stocks =
             Dict.values model.stocks
 
+        remainingBalance =
+            model.initialBalance - List.foldl (\stock sum -> stock.initialInvestment + sum) 0 stocks
+
         totalCurrentWorth =
-            List.foldl (\stock sum -> stock.currentWorth + sum) 0 stocks
+            List.foldl (\stock sum -> stock.currentWorth + sum) 0 stocks |> (+) remainingBalance
 
         totalPerformance =
             ((totalCurrentWorth / model.initialBalance) * 100) - 100
@@ -403,7 +405,7 @@ viewResults model =
         , section []
             [ text "Total Results"
             , div [] [ text ("Total Current Worth: USD " ++ format usLocale totalCurrentWorth) ]
-            , div [] [ text ("Total Performance: " ++ format usLocale totalPerformance) ]
+            , div [] [ text ("Total Performance: " ++ format usLocale totalPerformance ++ "%") ]
             ]
         ]
 
@@ -412,7 +414,7 @@ viewForm : Model -> Html Msg
 viewForm model =
     let
         initialBalance =
-            format usLocale model.initialBalance
+            String.fromFloat model.initialBalance
     in
     Html.form [ onSubmit SubmittedForm ]
         [ fieldset [] [ viewDatePicker model ]
@@ -439,9 +441,13 @@ viewStockInput model =
     Dict.toList model.portfolioAllocation
         |> List.map
             (\( id, { name, allocation } ) ->
+                let
+                    allocationText =
+                        Maybe.map String.fromInt allocation |> Maybe.withDefault ""
+                in
                 fieldset []
                     [ viewInput "text" "Stock Name" name (PortfolioAllocationName id)
-                    , viewInput "number" "Allocation" (String.fromInt allocation) (PortfolioAllocation id)
+                    , viewInput "number" "Allocation" allocationText (PortfolioAllocation id)
                     , button [ onClick (RemoveStock id) ] [ text "Remove" ]
                     ]
             )
