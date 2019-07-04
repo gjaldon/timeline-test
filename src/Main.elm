@@ -22,7 +22,7 @@ main =
 
 type alias Model =
     { startDate : Maybe Date
-    , initialBalance : Float
+    , initialBalance : Maybe Float
     , portfolioAllocation : Dict Int StockField
     , datePicker : DatePicker.DatePicker
     , currentWorth : Dict String Float
@@ -38,7 +38,7 @@ init _ =
 
         model =
             { startDate = Nothing
-            , initialBalance = 0
+            , initialBalance = Nothing
             , portfolioAllocation = Dict.fromList [ ( 1, StockField "" Nothing ) ]
             , datePicker = datePicker
             , currentWorth = Dict.empty
@@ -92,7 +92,7 @@ update msg model =
         InitialBalance input ->
             let
                 initialBalance =
-                    Maybe.withDefault 0 (String.toFloat input)
+                    String.toFloat input
             in
             ( { model | initialBalance = initialBalance }, Cmd.none )
 
@@ -204,7 +204,7 @@ addStockWithShares { initialBalance } { name, allocation } dict =
             (Maybe.withDefault 0 allocation |> toFloat) / 100.0
 
         initialInvestment =
-            floatAllocation * initialBalance
+            floatAllocation * Maybe.withDefault 0 initialBalance
     in
     Dict.insert name (Stock name initialInvestment 0 0 0) dict
 
@@ -372,14 +372,17 @@ viewResults model =
         stocks =
             Dict.values model.stocks
 
+        initialBalance =
+            Maybe.withDefault 0 model.initialBalance
+
         remainingBalance =
-            model.initialBalance - List.foldl (\stock sum -> stock.initialInvestment + sum) 0 stocks
+            initialBalance - List.foldl (\stock sum -> stock.initialInvestment + sum) 0 stocks
 
         totalCurrentWorth =
             List.foldl (\stock sum -> stock.currentWorth + sum) 0 stocks |> (+) remainingBalance
 
         totalPerformance =
-            ((totalCurrentWorth / model.initialBalance) * 100) - 100
+            ((totalCurrentWorth / initialBalance) * 100) - 100
     in
     section []
         [ text "Results"
@@ -414,7 +417,7 @@ viewForm : Model -> Html Msg
 viewForm model =
     let
         initialBalance =
-            String.fromFloat model.initialBalance
+            Maybe.map String.fromFloat model.initialBalance |> Maybe.withDefault ""
     in
     Html.form [ onSubmit SubmittedForm ]
         [ fieldset [] [ viewDatePicker model ]
