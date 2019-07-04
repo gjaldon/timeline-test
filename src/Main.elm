@@ -22,7 +22,7 @@ main =
 
 type alias Model =
     { startDate : Maybe Date
-    , initialBalance : Int
+    , initialBalance : Float
     , portfolioAllocation : Dict Int StockField
     , datePicker : DatePicker.DatePicker
     , currentWorth : Dict String Float
@@ -96,7 +96,7 @@ update msg model =
         InitialBalance input ->
             let
                 initialBalance =
-                    Maybe.withDefault 0 (String.toInt input)
+                    Maybe.withDefault 0 (String.toFloat input)
             in
             ( { model | initialBalance = initialBalance }, Cmd.none )
 
@@ -205,7 +205,7 @@ addStockWithShares : Model -> StockField -> Dict String Stock -> Dict String Sto
 addStockWithShares { initialBalance } { name, allocation } dict =
     let
         initialInvestment =
-            ((toFloat allocation / 100.0) |> Debug.log "allocation") * toFloat initialBalance |> Debug.log "investment"
+            (toFloat allocation / 100.0) * initialBalance
     in
     Dict.insert name (Stock name initialInvestment 0 0 0) dict
 
@@ -225,7 +225,7 @@ updateStockHistoricPrice price value =
                 currentWorth =
                     computeCurrentWorth newStock
             in
-            Just { newStock | currentWorth = currentWorth } |> Debug.log "currentWorth"
+            Just { newStock | currentWorth = currentWorth }
 
 
 updateStockLatestPrice : Float -> Maybe Stock -> Maybe Stock
@@ -244,7 +244,6 @@ computeCurrentWorth stock =
     let
         { initialInvestment, historicPrice, latestPrice } =
             stock
-                |> Debug.log "computeCurrentWorth"
     in
     (initialInvestment / historicPrice) * latestPrice
 
@@ -378,7 +377,7 @@ viewResults model =
             List.foldl (\stock sum -> stock.currentWorth + sum) 0 stocks
 
         totalPerformance =
-            ((totalCurrentWorth / toFloat model.initialBalance) * 100) - 100
+            ((totalCurrentWorth / model.initialBalance) * 100) - 100
     in
     section []
         [ text "Results"
@@ -413,11 +412,11 @@ viewForm : Model -> Html Msg
 viewForm model =
     let
         initialBalance =
-            String.fromInt model.initialBalance
+            format usLocale model.initialBalance
     in
     Html.form [ onSubmit SubmittedForm ]
         [ fieldset [] [ viewDatePicker model ]
-        , fieldset [] [ viewInput "number" "Initial Balance" initialBalance InitialBalance ]
+        , fieldset [] [ viewInput "number" "Initial Balance (USD)" initialBalance InitialBalance ]
         , fieldset []
             [ text "Portfolio Allocation"
             , button [ onClick AddStock ] [ text "Add Stock" ]
