@@ -60,7 +60,12 @@ settings =
         defaultSettings =
             DatePicker.defaultSettings
     in
-    { defaultSettings | isDisabled = isDisabled, inputId = Just "start-date", inputClassList = [ ( "form-input", True ) ] }
+    { defaultSettings
+        | isDisabled = isDisabled
+        , inputId = Just "start-date"
+        , inputClassList = [ ( "form-input", True ) ]
+        , inputAttributes = [ required True ]
+    }
 
 
 type alias StockField =
@@ -503,14 +508,22 @@ viewStockFields model =
                         , placeholder "50"
                         , value allocationText
                         , onInput (PortfolioAllocation id_)
-                        , Html.Attributes.min "0"
+                        , Html.Attributes.min "1"
                         , Html.Attributes.max "100"
                         , id "allocation"
                         , class "form-input"
+                        , required True
                         ]
 
                     symbolAttrs =
-                        [ type_ "text", placeholder "AAPL", value newName, onInput (PortfolioAllocationName id_), id "stock-name", class "form-input" ]
+                        [ type_ "text"
+                        , placeholder "AAPL"
+                        , value newName
+                        , onInput (PortfolioAllocationName id_)
+                        , id "stock-name"
+                        , class "form-input"
+                        , required True
+                        ]
                 in
                 div [ class "form-group stock-field" ]
                     [ div [ class "form-group stock-name-group" ]
@@ -530,7 +543,7 @@ viewInput : String -> String -> List (Attribute msg) -> Html msg
 viewInput t id_ attributes =
     let
         newAttributes =
-            List.append [ id id_, class "form-input" ] attributes
+            List.append [ id id_, class "form-input", required True ] attributes
     in
     div [ class "form-group" ]
         [ div [ class "col-3" ] [ label [ class "form-label", for id_ ] [ text t ] ]
