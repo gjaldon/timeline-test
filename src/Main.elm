@@ -408,33 +408,49 @@ viewResults model =
         totalPerformance =
             ((totalCurrentWorth / initialBalance) * 100) - 100
     in
-    section []
-        [ h2 [] [ text "Results" ]
-        , ul []
+    div [ class "panel" ]
+        [ div [ class "panel-header" ] [ div [ class "panel-title h3" ] [ text "Results" ] ]
+        , div [ class "panel-body" ]
             (List.map
                 (\stock ->
                     let
                         performance =
-                            format usLocale (((stock.currentWorth / stock.initialInvestment) * 100) - 100)
+                            ((stock.currentWorth / stock.initialInvestment) * 100) - 100
+
+                        textPerformance =
+                            format usLocale performance
 
                         currentWorth =
                             format usLocale stock.currentWorth
                     in
-                    li []
-                        [ text stock.symbol
-                        , div [] [ text ("Initial Investment: USD " ++ format usLocale stock.initialInvestment) ]
-                        , div [] [ text ("Current Worth: USD " ++ currentWorth) ]
-                        , div [] [ text ("Performance: " ++ performance ++ "%") ]
+                    div [ class "tile stock-results" ]
+                        [ div [ class "tile-content" ]
+                            [ div [ class "tile-title text-bold" ] [ text stock.symbol ]
+                            , div [ class "tile-subtitle" ] [ text ("Initial Investment: USD " ++ format usLocale stock.initialInvestment) ]
+                            , div [ class "tile-subtitle" ] [ text ("Current Worth: USD " ++ currentWorth) ]
+                            , div [ class "tile-subtitle " ] [ text "Performance: ", span [ class (performanceColor performance) ] [ text (textPerformance ++ "%") ] ]
+                            ]
                         ]
                 )
                 stocks
             )
-        , section []
-            [ h4 [] [ text "Totals" ]
-            , div [] [ text ("Total Current Worth: USD " ++ format usLocale totalCurrentWorth) ]
-            , div [] [ text ("Total Performance: " ++ format usLocale totalPerformance ++ "%") ]
+        , div [ class "panel-footer" ]
+            [ div [ class "panel-title h4 text-bold" ] [ text "Totals" ]
+            , div [ class "panel-content" ]
+                [ div [] [ text ("Total Current Worth: USD " ++ format usLocale totalCurrentWorth) ]
+                , div [] [ text "Performance: ", span [ class (performanceColor totalPerformance) ] [ text (format usLocale totalPerformance ++ "%") ] ]
+                ]
             ]
         ]
+
+
+performanceColor : Float -> String
+performanceColor perf =
+    if perf > 0 then
+        "text-success"
+
+    else
+        "text-error"
 
 
 viewForm : Model -> Html Msg
