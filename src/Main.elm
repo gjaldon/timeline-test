@@ -28,6 +28,7 @@ type alias Model =
     , datePicker : DatePicker.DatePicker
     , currentWorth : Dict String Float
     , stocks : Dict String Stock
+    , showResults : Bool
     }
 
 
@@ -44,6 +45,7 @@ init _ =
             , datePicker = datePicker
             , currentWorth = Dict.empty
             , stocks = Dict.empty
+            , showResults = False
             }
     in
     ( model, Cmd.map ToDatePicker datePickerFx )
@@ -58,7 +60,7 @@ settings =
         defaultSettings =
             DatePicker.defaultSettings
     in
-    { defaultSettings | isDisabled = isDisabled }
+    { defaultSettings | isDisabled = isDisabled, inputId = Just "start-date" }
 
 
 type alias StockField =
@@ -183,7 +185,7 @@ update msg model =
                         newStocks =
                             List.foldr (\stock dict -> Dict.update stock.symbol (updateStockHistoricPrice stock.price) dict) model.stocks stockData
                     in
-                    ( { model | stocks = newStocks }, Cmd.none )
+                    ( { model | stocks = newStocks, showResults = True }, Cmd.none )
 
                 Err _ ->
                     ( model, Cmd.none )
@@ -373,9 +375,18 @@ stockInfoDecoder =
 
 view : Model -> Html Msg
 view model =
+    let
+        showResults =
+            if model.showResults then
+                viewResults model
+
+            else
+                div [] []
+    in
     div []
-        [ viewForm model
-        , viewResults model
+        [ h1 [] [ text "Portfolio Performance" ]
+        , viewForm model
+        , showResults
         ]
 
 
@@ -398,8 +409,8 @@ viewResults model =
             ((totalCurrentWorth / initialBalance) * 100) - 100
     in
     section []
-        [ text "Results"
-        , div []
+        [ h2 [] [ text "Results" ]
+        , ul []
             (List.map
                 (\stock ->
                     let
@@ -409,7 +420,7 @@ viewResults model =
                         currentWorth =
                             format usLocale stock.currentWorth
                     in
-                    div []
+                    li []
                         [ text stock.symbol
                         , div [] [ text ("Initial Investment: USD " ++ format usLocale stock.initialInvestment) ]
                         , div [] [ text ("Current Worth: USD " ++ currentWorth) ]
@@ -419,7 +430,7 @@ viewResults model =
                 stocks
             )
         , section []
-            [ text "Total Results"
+            [ h4 [] [ text "Totals" ]
             , div [] [ text ("Total Current Worth: USD " ++ format usLocale totalCurrentWorth) ]
             , div [] [ text ("Total Performance: " ++ format usLocale totalPerformance ++ "%") ]
             ]
@@ -434,20 +445,29 @@ viewForm model =
     in
     Html.form [ onSubmit SubmittedForm ]
         [ fieldset [] [ viewDatePicker model ]
-        , fieldset [] [ viewInput "number" "Initial Balance (USD)" initialBalance InitialBalance [ Html.Attributes.min "1" ] ]
         , fieldset []
-            [ text "Portfolio Allocation"
+            (viewInput "Initial Balance (USD)"
+                "initial-balance"
+                [ type_ "number"
+                , placeholder "100,000"
+                , value initialBalance
+                , onInput InitialBalance
+                , Html.Attributes.min "1"
+                ]
+            )
+        , fieldset []
+            [ h3 [] [ text "Portfolio Allocation" ]
             , button [ onClick AddStock ] [ text "Add Stock" ]
             ]
         , div [] (viewStockInput model)
-        , button [] [ text "Submit" ]
+        , fieldset [] [ button [] [ text "Submit" ] ]
         ]
 
 
 viewDatePicker : Model -> Html Msg
 viewDatePicker { startDate, datePicker } =
     span []
-        [ label [] [ text "Start Date" ]
+        [ label [ for "start-date" ] [ text "Start Date" ]
         , DatePicker.view startDate settings datePicker |> Html.map ToDatePicker
         ]
 
@@ -456,26 +476,30 @@ viewStockInput : Model -> List (Html Msg)
 viewStockInput model =
     Dict.toList model.portfolioAllocation
         |> List.map
-            (\( id, { name, allocation } ) ->
+            (\( id_, { name, allocation } ) ->
                 let
+                    newName =
+                        String.toUpper name
+
                     allocationText =
                         Maybe.map String.fromInt allocation |> Maybe.withDefault ""
                 in
                 fieldset []
-                    [ viewInput "text" "Stock Name" name (PortfolioAllocationName id) []
-                    , viewInput "number" "Allocation" allocationText (PortfolioAllocation id) [ Html.Attributes.min "0", Html.Attributes.max "100" ]
-                    , button [ onClick (RemoveStock id) ] [ text "Remove" ]
-                    ]
+                    (List.concat
+                        [ viewInput "Stock Name" "stock-name" [ type_ "text", placeholder "AAPL", value newName, onInput (PortfolioAllocationName id_) ]
+                        , viewInput "Allocation" "allocation" [ type_ "number", placeholder "50", value allocationText, onInput (PortfolioAllocation id_), Html.Attributes.min "0", Html.Attributes.max "100" ]
+                        , [ button [ onClick (RemoveStock id_) ] [ text "Remove" ] ]
+                        ]
+                    )
             )
 
 
-viewInput : String -> String -> String -> (String -> msg) -> List (Attribute msg) -> Html msg
-viewInput t p v toMsg attributes =
+viewInput : String -> String -> List (Attribute msg) -> List (Html msg)
+viewInput t id_ attributes =
     let
         newAttributes =
-            List.append [ type_ t, placeholder p, value v, onInput toMsg ] attributes
+            List.append [ id id_ ] attributes
     in
-    span []
-        [ label [] [ text p ]
-        , input newAttributes []
-        ]
+    [ label [ for id_ ] [ text t ]
+    , input newAttributes []
+    ]
