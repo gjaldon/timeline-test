@@ -1,0 +1,33 @@
+div.container {
+  margin: 50px auto 0 auto;
+}
+
+.port-allocation {
+  display: flex;
+}
+
+.port-allocation-header {
+  flex: 1;
+}
+
+.add-stock-btn {
+  flex: 0.5;
+}
+
+.stock-field {
+  display: flex;
+}
+
+.stock-name-group {
+  flex: 1.2;
+}
+
+.allocation-group {
+  flex: 0.5;
+  margin: 0 0 0 1rem;
+}
+
+.stock-remove-btn {
+  flex: 0.25;
+  margin: 0 0 0 1rem;
+}

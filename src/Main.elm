@@ -60,7 +60,7 @@ settings =
         defaultSettings =
             DatePicker.defaultSettings
     in
-    { defaultSettings | isDisabled = isDisabled, inputId = Just "start-date" }
+    { defaultSettings | isDisabled = isDisabled, inputId = Just "start-date", inputClassList = [ ( "form-input", True ) ] }
 
 
 type alias StockField =
@@ -124,7 +124,7 @@ update msg model =
         PortfolioAllocationName id input ->
             let
                 portAllocation =
-                    Dict.update id (updateStockName input) model.portfolioAllocation
+                    Dict.update id (String.toUpper input |> updateStockName) model.portfolioAllocation
             in
             ( { model | portfolioAllocation = portAllocation }, Cmd.none )
 
@@ -383,7 +383,7 @@ view model =
             else
                 div [] []
     in
-    div []
+    div [ class "column col-12" ]
         [ h1 [] [ text "Portfolio Performance" ]
         , viewForm model
         , showResults
@@ -443,37 +443,35 @@ viewForm model =
         initialBalance =
             Maybe.map String.fromFloat model.initialBalance |> Maybe.withDefault ""
     in
-    Html.form [ onSubmit SubmittedForm ]
-        [ fieldset [] [ viewDatePicker model ]
-        , fieldset []
-            (viewInput "Initial Balance (USD)"
-                "initial-balance"
-                [ type_ "number"
-                , placeholder "100,000"
-                , value initialBalance
-                , onInput InitialBalance
-                , Html.Attributes.min "1"
-                ]
-            )
-        , fieldset []
-            [ h3 [] [ text "Portfolio Allocation" ]
-            , button [ onClick AddStock ] [ text "Add Stock" ]
+    Html.form [ onSubmit SubmittedForm, class "form-horizontal" ]
+        [ viewDatePicker model
+        , viewInput "Initial Balance (USD)"
+            "initial-balance"
+            [ type_ "number"
+            , placeholder "100,000"
+            , value initialBalance
+            , onInput InitialBalance
+            , Html.Attributes.min "1"
             ]
-        , div [] (viewStockInput model)
-        , fieldset [] [ button [] [ text "Submit" ] ]
+        , div [ class "port-allocation" ]
+            [ h3 [ class "port-allocation-header" ] [ text "Portfolio Allocation" ]
+            , button [ class "add-stock-btn", onClick AddStock, class "btn" ] [ text "Add Stock" ]
+            ]
+        , div [] (viewStockFields model)
+        , div [] [ button [ class "btn btn-primary" ] [ text "Submit" ] ]
         ]
 
 
 viewDatePicker : Model -> Html Msg
 viewDatePicker { startDate, datePicker } =
-    span []
-        [ label [ for "start-date" ] [ text "Start Date" ]
-        , DatePicker.view startDate settings datePicker |> Html.map ToDatePicker
+    div [ class "form-group" ]
+        [ div [ class "col-3" ] [ label [ for "start-date", class "form-inline form-label" ] [ text "Start Date" ] ]
+        , div [ class "col-9" ] [ DatePicker.view startDate settings datePicker |> Html.map ToDatePicker ]
         ]
 
 
-viewStockInput : Model -> List (Html Msg)
-viewStockInput model =
+viewStockFields : Model -> List (Html Msg)
+viewStockFields model =
     Dict.toList model.portfolioAllocation
         |> List.map
             (\( id_, { name, allocation } ) ->
@@ -483,23 +481,42 @@ viewStockInput model =
 
                     allocationText =
                         Maybe.map String.fromInt allocation |> Maybe.withDefault ""
-                in
-                fieldset []
-                    (List.concat
-                        [ viewInput "Stock Name" "stock-name" [ type_ "text", placeholder "AAPL", value newName, onInput (PortfolioAllocationName id_) ]
-                        , viewInput "Allocation" "allocation" [ type_ "number", placeholder "50", value allocationText, onInput (PortfolioAllocation id_), Html.Attributes.min "0", Html.Attributes.max "100" ]
-                        , [ button [ onClick (RemoveStock id_) ] [ text "Remove" ] ]
+
+                    allocationAttrs =
+                        [ type_ "number"
+                        , placeholder "50"
+                        , value allocationText
+                        , onInput (PortfolioAllocation id_)
+                        , Html.Attributes.min "0"
+                        , Html.Attributes.max "100"
+                        , id "allocation"
+                        , class "form-input"
                         ]
-                    )
+
+                    symbolAttrs =
+                        [ type_ "text", placeholder "AAPL", value newName, onInput (PortfolioAllocationName id_), id "stock-name", class "form-input" ]
+                in
+                div [ class "form-group stock-field" ]
+                    [ div [ class "form-group stock-name-group" ]
+                        [ div [ class "col-4" ] [ label [ class "form-label", for "stock-name" ] [ text "Stock Symbol" ] ]
+                        , div [ class "col-8" ] [ input symbolAttrs [] ]
+                        ]
+                    , div [ class "form-group allocation-group" ]
+                        [ div [ class "col-6" ] [ label [ class "form-label", for "allocation" ] [ text "Allocation" ] ]
+                        , div [ class "col-6" ] [ input allocationAttrs [] ]
+                        ]
+                    , button [ onClick (RemoveStock id_), class "btn stock-remove-btn" ] [ text "Remove" ]
+                    ]
             )
 
 
-viewInput : String -> String -> List (Attribute msg) -> List (Html msg)
+viewInput : String -> String -> List (Attribute msg) -> Html msg
 viewInput t id_ attributes =
     let
         newAttributes =
-            List.append [ id id_ ] attributes
+            List.append [ id id_, class "form-input" ] attributes
     in
-    [ label [ for id_ ] [ text t ]
-    , input newAttributes []
-    ]
+    div [ class "form-group" ]
+        [ div [ class "col-3" ] [ label [ class "form-label", for id_ ] [ text t ] ]
+        , div [ class "col-9" ] [ input newAttributes [] ]
+        ]
